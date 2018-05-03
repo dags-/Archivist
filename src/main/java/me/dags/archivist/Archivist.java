@@ -56,6 +56,15 @@ public class Archivist implements Runnable {
         Path dir = logs.resolve(year).resolve(folder);
         Path destination = dir.resolve(source.getFileName());
 
+        if (Files.exists(destination)) {
+            String file = destination.getFileName().toString();
+            String name = file.replace(".log.gz", "");
+            for (int i = 0; Files.exists(destination); i++) {
+                String fileName = String.format("%s-%s.log.gz", name, i);
+                destination = dir.resolve(fileName);
+            }
+        }
+
         if (!mkdirs(dir)) {
             logger.warn("Unable to create directory {}", dir);
             return;
