@@ -24,7 +24,7 @@ import org.spongepowered.api.scheduler.Task;
 /**
  * @author dags <dags@dags.me>
  */
-@Plugin(id = "archivist", name = "Archivist", version = "0.1", description = "Tidies your logs folder")
+@Plugin(id = "archivist", name = "Archivist", version = "0.2.1", description = "Tidies your logs folder")
 public class Archivist implements Runnable {
 
     private final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:*.log.gz");
@@ -103,7 +103,7 @@ public class Archivist implements Runnable {
         Matcher nameMatcher = namePattern.matcher(file.getFileName().toString());
         if (nameMatcher.find()) {
             String name = nameMatcher.group(1);
-            String nameFormat = "%s-%02d.log.gz";
+            String nameFormat = "%s__%03d.log.gz";
             String filename = String.format(nameFormat, name, 0);
 
             Path destination = dir.resolve(filename);
