@@ -6,7 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileTime;
+import java.text.SimpleDateFormat;
 import java.time.Month;
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,34 +48,21 @@ public class Archivist implements Runnable {
         }
     }
 
-    private void archive(Path source){
-        Matcher dateMatcher = datePattern.matcher(source.getFileName().toString());
-        if (!dateMatcher.find()) {
-            logger.info("Skipping file {}", source);
+    private void archive(Path source) {
+        Path directory = getArchiveDirectory(source);
+        if (directory == null) {
+            logger.warn("Unable to determine date of file {}", source);
             return;
         }
 
-        // String date = matcher.group(1);
-        String year = dateMatcher.group(2);
-        String month = dateMatcher.group(3);
-        String folder = String.format("%s-%s", month, Month.of(Integer.parseInt(month)));
-
-        Path dir = logs.resolve(year).resolve(folder);
-        Path destination = dir.resolve(source.getFileName());
-
-        if (Files.exists(destination)) {
-            Matcher nameMatcher = namePattern.matcher(source.getFileName().toString());
-            if (nameMatcher.find()) {
-                String name = nameMatcher.group(1);
-                for (int i = 1; Files.exists(destination); i++) {
-                    String fileName = String.format("%s-%s.log.gz", name, i);
-                    destination = dir.resolve(fileName);
-                }
-            }
+        Path destination = getArchiveName(directory, source);
+        if (destination == null) {
+            logger.warn("Unable to resolve archive name for file {}", source);
+            return;
         }
 
-        if (!mkdirs(dir)) {
-            logger.warn("Unable to create directory {}", dir);
+        if (!mkdirs(directory)) {
+            logger.warn("Unable to create directory {}", directory);
             return;
         }
 
@@ -82,6 +72,49 @@ public class Archivist implements Runnable {
         }
 
         logger.info("Archived file {} to {}", source, destination);
+    }
+
+    private Path getArchiveDirectory(Path file) {
+        Matcher dateMatcher = datePattern.matcher(file.getFileName().toString());
+
+        String year;
+        String month;
+        if (dateMatcher.find()) {
+            year = dateMatcher.group(2);
+            month = dateMatcher.group(3);
+        } else {
+            try {
+                FileTime time = Files.getLastModifiedTime(file);
+                Date date = new Date(time.toMillis());
+                year = new SimpleDateFormat("yyyy").format(date);
+                month = new SimpleDateFormat("MM").format(date);
+            } catch (IOException e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+
+        String folder = String.format("%s-%s", month, Month.of(Integer.parseInt(month)));
+
+        return logs.resolve(year).resolve(folder);
+    }
+
+    private Path getArchiveName(Path dir, Path file) {
+        Matcher nameMatcher = namePattern.matcher(file.getFileName().toString());
+        if (nameMatcher.find()) {
+            String name = nameMatcher.group(1);
+            String nameFormat = "%s-%02d.log.gz";
+            String filename = String.format(nameFormat, name, 0);
+
+            Path destination = dir.resolve(filename);
+            for (int i = 1; Files.exists(destination); i++) {
+                filename = String.format(nameFormat, name, i);
+                destination = dir.resolve(filename);
+            }
+
+            return destination;
+        }
+        return null;
     }
 
     private static boolean mkdirs(Path path) {

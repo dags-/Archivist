@@ -3,7 +3,7 @@ plugins {
 }
 
 group 'me.dags'
-version '0.2-SNAPSHOT'
+version '0.2.1-SNAPSHOT'
 def spongeAPI = '7.1.0'
 def spongeChannel = 'SNAPSHOT'
 
