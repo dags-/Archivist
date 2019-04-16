@@ -1,17 +1,44 @@
 plugins {
-    id 'java'
+    id "com.github.johnrengelman.shadow" version "4.0.2"
+    id "org.spongepowered.plugin" version "0.8.1"
+    id "java"
 }
 
-group 'me.dags'
-version '0.2.1-SNAPSHOT'
-def spongeAPI = '7.1.0'
-def spongeChannel = 'SNAPSHOT'
+group "me.dags"
+version "0.2.2-SNAPSHOT"
+def spongeAPI = "7.2.0"
+def spongeChannel = "SNAPSHOT"
+
+configurations {
+    shade
+    compile.extendsFrom shade
+}
+
+sponge {
+    plugin.id = rootProject.name.toLowerCase()
+    plugin.meta {
+        name = rootProject.name
+        version = rootProject.version
+        description = "Tidies your log folder"
+    }
+}
 
 repositories {
     mavenCentral()
-    maven { url 'http://repo.spongepowered.org/maven' }
+    maven { url "http://repo.spongepowered.org/maven" }
+    maven { url "https://jitpack.io" }
 }
 
 dependencies {
-    compileOnly "org.spongepowered:spongeapi:${spongeAPI}-${spongeChannel}"
+    compile "org.spongepowered:spongeapi:${spongeAPI}-${spongeChannel}"
+    shade "com.github.dags-:Config:1.0.6"
 }
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    relocate "me.dags.config", "me.dags.archivist.config"
+    archiveName = "${baseName}-${version}-SpongeAPI-${spongeAPI}.jar"
+}
+
+build.dependsOn shadowJar
+jar.enabled = false

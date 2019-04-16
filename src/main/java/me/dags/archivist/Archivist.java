@@ -13,10 +13,16 @@ import java.util.Date;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.google.inject.Inject;
+import me.dags.config.Config;
+import me.dags.config.Node;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.api.Sponge;
+import org.spongepowered.api.config.DefaultConfig;
 import org.spongepowered.api.event.Listener;
+import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameStartedServerEvent;
 import org.spongepowered.api.plugin.Plugin;
 import org.spongepowered.api.scheduler.Task;
@@ -24,8 +30,8 @@ import org.spongepowered.api.scheduler.Task;
 /**
  * @author dags <dags@dags.me>
  */
-@Plugin(id = "archivist", name = "Archivist", version = "0.2.1", description = "Tidies your logs folder")
-public class Archivist implements Runnable {
+@Plugin(id = "archivist")
+public class Archivist {
 
     private final PathMatcher filter = FileSystems.getDefault().getPathMatcher("glob:*.log.gz");
     private final Pattern datePattern = Pattern.compile("((\\d{4})-(\\d{2})-\\d{2})");
@@ -33,13 +39,38 @@ public class Archivist implements Runnable {
     private final Logger logger = LoggerFactory.getLogger("Archivist");
     private final Path logs = Sponge.getGame().getGameDirectory().resolve("logs").toAbsolutePath();
 
-    @Listener
-    public void start(GameStartedServerEvent e) {
-        Task.builder().interval(1, TimeUnit.HOURS).delay(5, TimeUnit.SECONDS).execute(this).async().submit(this);
+    private final Config config;
+    private Task task;
+
+    @Inject
+    public Archivist(@DefaultConfig(sharedRoot = false) Path path) {
+        this.config = Config.must(path);
     }
 
-    @Override
-    public void run() {
+    @Listener
+    public void onReload(GameReloadEvent event) {
+        if (task != null) {
+            task.cancel();
+        }
+
+        Node interval = config.reload().node("interval");
+        interval.comment("The number of minutes between each scan of the logs folder");
+
+        task = Task.builder()
+                .interval(interval.get(60), TimeUnit.MINUTES)
+                .execute(this::run)
+                .async()
+                .submit(this);
+
+        config.saveIfAbsent();
+    }
+
+    @Listener
+    public void onStart(GameStartedServerEvent e) {
+        onReload(null);
+    }
+
+    private void run() {
         try {
             logger.info("Checking for logs to archive in {}", logs);
             Files.list(logs).filter(p -> filter.matches(p.getFileName())).forEach(this::archive);
